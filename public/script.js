@@ -1,24 +1,24 @@
 const form = document.getElementById('chat-form');
 const input = document.getElementById('user-input');
 const chatBox = document.getElementById('chat-box');
-const submitBtn = document.getElementById('send-btn');
-
+const sendBtn = document.getElementById('send-btn') || document.querySelector('button');
 
 const BASE_URL = 'http://localhost:3000';
-
-// simpan percakapan
 const history = [];
+
+// greeting opsional
+append('bot', 'Hello! How can I help you today?');
 
 form.addEventListener('submit', async (e) => {
   e.preventDefault();
-  const userMessage = input.value.trim();
-  if (!userMessage) return;
+  const text = (input.value || '').trim();
+  if (!text) return;
 
-  append('user', userMessage);
+  // tampilkan & simpan pesan user
+  append('user', text);
+  history.push({ role: 'user', content: text });
   input.value = '';
   setLoading(true);
-
-  history.push({ role: 'user', content: userMessage });
 
   try {
     const res = await fetch(`${BASE_URL}/api/chat`, {
@@ -27,17 +27,17 @@ form.addEventListener('submit', async (e) => {
       body: JSON.stringify({ messages: history }),
     });
 
-    // parse robust: JSON kalau ada, fallback ke text
     const ct = res.headers.get('content-type') || '';
-    const data = ct.includes('application/json') ? await res.json() : { error: await res.text() };
+    const data = ct.includes('application/json') ? await res.json()
+                                                 : { error: await res.text() };
     if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
 
     const answer = data?.result ?? '(no content)';
     append('bot', answer);
     history.push({ role: 'model', content: answer });
 
-    // batasi history biar body nggak kegedean
-    if (history.length > 10) history.splice(0, history.length - 10);
+    // batasi panjang history agar request tidak membengkak
+    if (history.length > 20) history.splice(0, history.length - 20);
   } catch (err) {
     append('bot', `Error: ${err.message}`);
   } finally {
@@ -45,15 +45,23 @@ form.addEventListener('submit', async (e) => {
   }
 });
 
-function append(sender, text) {
-  const el = document.createElement('div');
-  el.className = `message ${sender}`;
-  el.textContent = text;
-  chatBox.appendChild(el);
+function append(sender, text){
+  const row = document.createElement('div');
+  row.className = `row ${sender}`;
+
+  const bubble = document.createElement('div');
+  bubble.className = 'bubble';
+  bubble.textContent = text;
+
+  row.appendChild(bubble);
+  chatBox.appendChild(row);
+
+  // auto-scroll ke bawah
   chatBox.scrollTop = chatBox.scrollHeight;
 }
 
-function setLoading(state) {
-  submitBtn.disabled = state;
-  submitBtn.textContent = state ? 'Thinking…' : 'Send';
+function setLoading(state){
+  if (!sendBtn) return;
+  sendBtn.disabled = state;
+  sendBtn.textContent = state ? 'Thinking…' : 'Send';
 }
